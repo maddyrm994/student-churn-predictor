@@ -92,7 +92,50 @@ if SUBMITTED:
     models["Stacking Classifier"] = stacking_model
 
     st.subheader("🔮 Prediction Results")
-    for name, model in models.items():
-        model.fit(X_trans, y_dummy)
-        pred = model.predict(input_trans)[0]
-        st.write(f"**{name}** predicts: {'✅ This Student will Return' if pred == 1 else '❌ This Student will not Return'}")
+
+    cols = st.columns(2)
+    model_names = list(models.keys())
+
+    # Fit the preprocessor on full X (excluding last row)
+    X_trans_full = preprocessor.fit_transform(X)
+    input_trans_full = preprocessor.transform(input_row)
+
+    # Get feature names after transformation
+    ohe = preprocessor.named_transformers_['cat']['encoder']
+    encoded_cat_cols = ohe.get_feature_names_out(cat_cols)
+    feature_names = num_cols + list(encoded_cat_cols)
+
+    for idx, name in enumerate(model_names):
+        with cols[idx % 2]:
+            model = models[name]
+            model.fit(X_trans_full, y_dummy)
+            pred = model.predict(input_trans_full)[0]
+            proba = model.predict_proba(input_trans_full)[0][1]
+
+            msg = f"**{name}**\n\n"
+            msg += f"🔢 Confidence: `{proba:.2f}`\n\n"
+
+            if pred == 1:
+                msg += "✅ This Student will Return"
+                st.success(msg)
+            else:
+                msg += "❌ This Student will Not Return\n"
+
+                # Get important feature
+                reason = "N/A"
+                try:
+                    if hasattr(model, "coef_"):  # Logistic Regression
+                        weights = model.coef_[0]
+                        contribs = input_trans_full[0] * weights
+                        top_idx = np.argsort(contribs)[0]  # Most negative contribution
+                        reason = f"{feature_names[top_idx]} (contribution={contribs[top_idx]:.2f}, weight={weights[top_idx]:.2f})"
+                    elif hasattr(model, "feature_importances_"):  # Trees
+                        importances = model.feature_importances_
+                        input_values = input_trans_full[0]
+                        top_idx = np.argsort(importances * np.abs(input_values))[-1]
+                        reason = f"{feature_names[top_idx]} (importance={importances[top_idx]:.2f})"
+                except Exception as e:
+                    reason = f"Could not determine (error: {str(e)})"
+
+                msg += f"\n\n📉 **Top Reason for Rejection:** `{reason}`"
+                st.error(msg)
