@@ -195,8 +195,23 @@ else:
         st.subheader("📈 Model Comparison")
         fig, ax = plt.subplots(figsize=(10, 4))
         result_df.plot(kind='bar', ax=ax)
+
+        # Add value labels on top of each bar
+        for container in ax.containers:
+            for bar in container:
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height,
+                    f'{height:.2f}',
+                    ha='center',
+                    va='bottom',
+                    fontsize=8
+                )
+
         plt.xticks(rotation=45)
         st.pyplot(fig)
+
 
         best_model = result_df["Accuracy"].idxmax()
         final_preds = predictions[best_model]
